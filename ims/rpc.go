@@ -114,3 +114,21 @@ func GetLatestMessage(addr string, r *HistoryRequest) []*HistoryMessage {
 
 	return historyMessages
 }
+func GetLatestMessageByMsgId(addr string, r *HistoryRequest) []*HistoryMessage {
+	atomic.AddInt64(&server_summary.nrequests, 1)
+	messages := storage.LoadLatestMessagesByMsgId(r.AppID, r.Uid, r.LastMsgID,int(r.Limit))
+
+	historyMessages := make([]*HistoryMessage, 0, 10)
+	for _, emsg := range(messages) {
+		hm := &HistoryMessage{}
+		hm.MsgID = emsg.msgid
+		hm.DeviceID = emsg.device_id
+		hm.Cmd = int32(emsg.msg.cmd)
+
+		emsg.msg.version = DEFAULT_VERSION
+		hm.Raw = emsg.msg.ToData()
+		historyMessages = append(historyMessages, hm)
+	}
+
+	return historyMessages
+}

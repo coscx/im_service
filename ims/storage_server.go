@@ -186,7 +186,7 @@ func ListenRPCClient() {
 	dispatcher.AddFunc("SaveGroupMessage", SaveGroupMessage)
 	dispatcher.AddFunc("GetNewCount", GetNewCount)
 	dispatcher.AddFunc("GetLatestMessage", GetLatestMessage)
-	
+	dispatcher.AddFunc("GetLatestMessageByMsgId", GetLatestMessageByMsgId)
 	s := &gorpc.Server{
 		Addr: config.rpc_listen,
 		Handler: dispatcher.NewHandlerFunc(),

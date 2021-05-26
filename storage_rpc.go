@@ -77,6 +77,7 @@ type SyncGroupHistory struct {
 type HistoryRequest struct {
 	AppID int64
 	Uid   int64
+	LastMsgID int64
 	Limit int32
 }
 

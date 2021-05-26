@@ -419,7 +419,49 @@ func (storage *PeerStorage) LoadLatestMessages(appid int64, receiver int64, limi
 	}
 	return messages
 }
+func (storage *PeerStorage) LoadLatestMessagesByMsgId(appid int64, receiver int64, msgId int64, limit int) []*EMessage {
+	lastId := msgId
+	messages := make([]*EMessage, 0, 10)
+	for {
+		if lastId == 0 {
+			break
+		}
 
+		msg := storage.LoadMessage(lastId)
+		if msg == nil {
+			break
+		}
+
+		var off *OfflineMessage
+		if ioff, ok := msg.body.(IOfflineMessage); ok {
+			off = ioff.body()
+		} else {
+			log.Warning("invalid message cmd:", msg.cmd)
+			break
+		}
+
+		msg = storage.LoadMessage(off.msgid)
+		if msg == nil {
+			break
+		}
+		if msg.cmd != MSG_GROUP_IM &&
+			msg.cmd != MSG_GROUP_NOTIFICATION &&
+			msg.cmd != MSG_IM &&
+			msg.cmd != MSG_CUSTOMER &&
+			msg.cmd != MSG_CUSTOMER_SUPPORT {
+			lastId = off.prev_msgid
+			continue
+		}
+
+		emsg := &EMessage{msgid:off.msgid, device_id:off.device_id, msg:msg}
+		messages = append(messages, emsg)
+		if len(messages) >= limit {
+			break
+		}
+		lastId = off.prev_msgid
+	}
+	return messages
+}
 func (client *PeerStorage) isGroupMessage(msg *Message) bool {
 	return msg.cmd == MSG_GROUP_IM || msg.flag & MESSAGE_FLAG_GROUP != 0
 }

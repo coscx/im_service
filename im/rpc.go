@@ -411,7 +411,111 @@ func LoadLatestMessage(w http.ResponseWriter, req *http.Request) {
 	w.Write(b)
 	log.Info("load latest message success")
 }
+func LoadLatestMessageByMsgId(w http.ResponseWriter, req *http.Request) {
+	log.Info("load latest message")
+	m, _ := url.ParseQuery(req.URL.RawQuery)
 
+	appid, err := strconv.ParseInt(m.Get("appid"), 10, 64)
+	if err != nil {
+		log.Info("error:", err)
+		WriteHttpError(400, "invalid query param", w)
+		return
+	}
+
+	uid, err := strconv.ParseInt(m.Get("uid"), 10, 64)
+	if err != nil {
+		log.Info("error:", err)
+		WriteHttpError(400, "invalid query param", w)
+		return
+	}
+	msgid, err := strconv.ParseInt(m.Get("last_id"), 10, 64)
+	if err != nil {
+		log.Info("error:", err)
+		WriteHttpError(400, "invalid query param", w)
+		return
+	}
+	limit, err := strconv.ParseInt(m.Get("limit"), 10, 32)
+	if err != nil {
+		log.Info("error:", err)
+		WriteHttpError(400, "invalid query param", w)
+		return
+	}
+	log.Infof("appid:%d uid:%d limit:%d", appid, uid, limit)
+
+	rpc := GetStorageRPCClient(uid)
+
+	s := &HistoryRequest{
+		AppID:appid,
+		Uid:uid,
+		LastMsgID:msgid,
+		Limit:int32(limit),
+	}
+
+	resp, err := rpc.Call("GetLatestMessageByMsgId", s)
+	if err != nil {
+		log.Warning("get latest message by msgId err:", err)
+		WriteHttpError(400, "internal error", w)
+		return
+	}
+
+	hm := resp.([]*HistoryMessage)
+	messages := make([]*EMessage, 0)
+	for _, msg := range(hm) {
+		m := &Message{cmd:int(msg.Cmd), version:DEFAULT_VERSION}
+		m.FromData(msg.Raw)
+		e := &EMessage{msgid:msg.MsgID, device_id:msg.DeviceID, msg:m}
+		messages = append(messages, e)
+	}
+
+	if len(messages) > 0 {
+		//reverse
+		size := len(messages)
+		for i := 0; i < size/2; i++ {
+			t := messages[i]
+			messages[i] = messages[size-i-1]
+			messages[size-i-1] = t
+		}
+	}
+
+	msg_list := make([]map[string]interface{}, 0, len(messages))
+	for _, emsg := range messages {
+		if emsg.msg.cmd == MSG_IM ||
+			emsg.msg.cmd == MSG_GROUP_IM {
+			im := emsg.msg.body.(*IMMessage)
+
+			obj := make(map[string]interface{})
+			obj["content"] = im.content
+			obj["timestamp"] = im.timestamp
+			obj["sender"] = im.sender
+			obj["receiver"] = im.receiver
+			obj["command"] = emsg.msg.cmd
+			obj["id"] = emsg.msgid
+			msg_list = append(msg_list, obj)
+
+		} else if emsg.msg.cmd == MSG_CUSTOMER ||
+			emsg.msg.cmd == MSG_CUSTOMER_SUPPORT {
+			im := emsg.msg.body.(*CustomerMessage)
+
+			obj := make(map[string]interface{})
+			obj["content"] = im.content
+			obj["timestamp"] = im.timestamp
+			obj["customer_appid"] = im.customer_appid
+			obj["customer_id"] = im.customer_id
+			obj["store_id"] = im.store_id
+			obj["seller_id"] = im.seller_id
+			obj["command"] = emsg.msg.cmd
+			obj["id"] = emsg.msgid
+			msg_list = append(msg_list, obj)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	obj := make(map[string]interface{})
+	obj["data"] = msg_list
+	b, _ := json.Marshal(obj)
+	w.Write(b)
+	log.Info("load latest message success")
+}
 func LoadHistoryMessage(w http.ResponseWriter, req *http.Request) {
 	log.Info("load message")
 	m, _ := url.ParseQuery(req.URL.RawQuery)
