@@ -170,6 +170,7 @@ func StartHttpServer(addr string) {
 	http.HandleFunc("/post_peer_message", PostPeerMessage)		
 	http.HandleFunc("/post_group_message", PostGroupMessage)	
 	http.HandleFunc("/load_latest_message", LoadLatestMessage)
+	http.HandleFunc("/load_latest_message_by_msg_id", LoadLatestMessageByMsgId)
 	http.HandleFunc("/load_history_message", LoadHistoryMessage)
 	http.HandleFunc("/post_system_message", SendSystemMessage)
 	http.HandleFunc("/post_notification", SendNotification)

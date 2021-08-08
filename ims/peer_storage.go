@@ -20,7 +20,10 @@
 
 package main
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 import "io"
 import "os"
 import "time"
@@ -393,7 +396,12 @@ func (storage *PeerStorage) LoadLatestMessages(appid int64, receiver int64, limi
 		if ioff, ok := msg.body.(IOfflineMessage); ok {
 			off = ioff.body()
 		} else {
-			log.Warning("invalid message cmd:", msg.cmd)
+			dat,err := json.Marshal(msg)
+			dat = []byte(fmt.Sprintf("%+v", msg))
+			if err != nil {
+				log.Warning("invalid message cmd:", err)
+			}
+			log.Warning("invalid mege cmd:", string(dat))
 			break
 		}
 
@@ -422,44 +430,102 @@ func (storage *PeerStorage) LoadLatestMessages(appid int64, receiver int64, limi
 func (storage *PeerStorage) LoadLatestMessagesByMsgId(appid int64, receiver int64, msgId int64, limit int) []*EMessage {
 	lastId := msgId
 	messages := make([]*EMessage, 0, 10)
-	for {
-		if lastId == 0 {
-			break
-		}
-
-		msg := storage.LoadMessage(lastId)
-		if msg == nil {
-			break
-		}
-
-		var off *OfflineMessage
-		if ioff, ok := msg.body.(IOfflineMessage); ok {
-			off = ioff.body()
-		} else {
-			log.Warning("invalid message cmd:", msg.cmd)
-			break
-		}
-
-		msg = storage.LoadMessage(off.msgid)
-		if msg == nil {
-			break
-		}
-		if msg.cmd != MSG_GROUP_IM &&
-			msg.cmd != MSG_GROUP_NOTIFICATION &&
-			msg.cmd != MSG_IM &&
-			msg.cmd != MSG_CUSTOMER &&
-			msg.cmd != MSG_CUSTOMER_SUPPORT {
-			lastId = off.prev_msgid
-			continue
-		}
-
-		emsg := &EMessage{msgid:off.msgid, device_id:off.device_id, msg:msg}
-		messages = append(messages, emsg)
-		if len(messages) >= limit {
-			break
-		}
-		lastId = off.prev_msgid
+	msg := storage.LoadMessage(lastId)
+	if msg == nil {
+		return messages
 	}
+
+	var offs *OfflineMessage
+	if ioff, ok := msg.body.(IOfflineMessage); ok {
+		offs = ioff.body()
+		fmt.Println(offs)
+		for {
+			if lastId == 0 {
+				break
+			}
+
+			msg := storage.LoadMessage(lastId)
+			if msg == nil {
+				break
+			}
+
+			var off *OfflineMessage
+			if ioff, ok := msg.body.(IOfflineMessage); ok {
+				off = ioff.body()
+			} else {
+				dat,err := json.Marshal(msg)
+				dat = []byte(fmt.Sprintf("%+v", msg.body))
+				if err != nil {
+					log.Warning("invalid message cmd:", err)
+				}
+				log.Warning("invalid mege cmd:", string(dat))
+				break
+			}
+
+			msg = storage.LoadMessage(off.msgid)
+			if msg == nil {
+				break
+			}
+			if msg.cmd != MSG_GROUP_IM &&
+				msg.cmd != MSG_GROUP_NOTIFICATION &&
+				msg.cmd != MSG_IM &&
+				msg.cmd != MSG_CUSTOMER &&
+				msg.cmd != MSG_CUSTOMER_SUPPORT {
+				lastId = off.prev_msgid
+				continue
+			}
+
+			emsg := &EMessage{msgid:off.msgid, device_id:off.device_id, msg:msg}
+			messages = append(messages, emsg)
+			if len(messages) >= limit {
+				break
+			}
+			lastId = off.prev_msgid
+		}
+		return messages
+
+	} else {
+		last_id, _ := storage.GetLastMessageID(appid, receiver)
+		for {
+
+
+			msg := storage.LoadMessage(last_id)
+			if msg == nil {
+				break
+			}
+
+			var off *OfflineMessage
+			if ioff, ok := msg.body.(IOfflineMessage); ok {
+				off = ioff.body()
+			} else {
+				dat,err := json.Marshal(msg)
+				dat = []byte(fmt.Sprintf("%+v", msg.body))
+				if err != nil {
+					log.Warning("invalid message cmd:", err)
+				}
+				log.Warning("invalid mege cmd:", string(dat))
+				break
+			}
+
+			msg = storage.LoadMessage(off.msgid)
+			if msg == nil {
+				break
+			}
+			if msg.cmd != MSG_GROUP_IM &&
+				msg.cmd != MSG_GROUP_NOTIFICATION &&
+				msg.cmd != MSG_IM &&
+				msg.cmd != MSG_CUSTOMER &&
+				msg.cmd != MSG_CUSTOMER_SUPPORT {
+				lastId = off.prev_msgid
+				continue
+			}
+
+
+			lastId = off.prev_msgid
+		}
+
+	}
+
 	return messages
 }
 func (client *PeerStorage) isGroupMessage(msg *Message) bool {
